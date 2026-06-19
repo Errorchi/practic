@@ -16,6 +16,10 @@
       "destination": "/api/$1"
     },
     {
+      "source": "/assets/(.*)",
+      "destination": "/dist/assets/$1"
+    },
+    {
       "source": "/(.*)",
       "destination": "/dist/index.html"
     }
