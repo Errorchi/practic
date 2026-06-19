@@ -1,6 +1,13 @@
 // For local development, change VITE_API_URL to your local server URL (e.g., http://localhost:3000)
 // For production with Vercel, it will be auto-detected from the deployment URL (leave empty)
-const BASE_URL = import.meta.env.VITE_API_URL || '';
+const rawBaseUrl = import.meta.env.VITE_API_URL || '';
+
+// If the page is loaded over HTTPS but the configured API URL is HTTP,
+// use relative URLs instead to avoid mixed content errors.
+// This handles cases where VITE_API_URL is incorrectly set on Vercel deployments.
+const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
+const isHttpUrl = rawBaseUrl.startsWith('http://');
+const BASE_URL = (isHttpsPage && isHttpUrl) ? '' : rawBaseUrl;
 
 export const API_CONFIG = {
     BASE_URL: BASE_URL,
