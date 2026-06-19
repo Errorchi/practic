@@ -1,16 +1,5 @@
-// For local development, change VITE_API_URL to your local server URL (e.g., http://localhost:3000)
-// For production with Vercel, it will be auto-detected from the deployment URL (leave empty)
-const rawBaseUrl = import.meta.env.VITE_API_URL || '';
-
-// If the page is loaded over HTTPS but the configured API URL is HTTP,
-// use relative URLs instead to avoid mixed content errors.
-// This handles cases where VITE_API_URL is incorrectly set on Vercel deployments.
-const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
-const isHttpUrl = rawBaseUrl.startsWith('http://');
-const BASE_URL = (isHttpsPage && isHttpUrl) ? '' : rawBaseUrl;
-
 export const API_CONFIG = {
-    BASE_URL: BASE_URL,
+    BASE_URL: '', // ВСЕГДА пустая строка для Vercel
     TIMEOUT: 30000,
     ENDPOINTS: {
         AUTH: '/api/auth',
@@ -22,15 +11,8 @@ export const API_CONFIG = {
 };
 
 export const getApiUrl = (endpoint: string, params?: Record<string, string>): string => {
-    let url: string;
-    
-    if (API_CONFIG.BASE_URL) {
-        // Full URL for local development or custom API server
-        url = API_CONFIG.BASE_URL + endpoint;
-    } else {
-        // Relative URL for same-origin (Vercel deployment)
-        url = endpoint;
-    }
+    // ВСЕГДА используем только относительный путь
+    let url = endpoint;
     
     if (params) {
         const searchParams = new URLSearchParams();
