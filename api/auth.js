@@ -44,7 +44,7 @@ export default async function handler(req, res) {
 
             // Создаем пользователя (пароль без хеша для простоты)
             const result = await sql`
-                INSERT INTO users (email, password_hash, name)
+                INSERT INTO users (email, password, name)
                 VALUES (${email}, ${password}, ${name})
                 RETURNING id, email, name
             `;
@@ -73,7 +73,7 @@ export default async function handler(req, res) {
             }
 
             // Простая проверка (без bcrypt)
-            if (user[0].password_hash !== password) {
+            if (user[0].password !== password) {
                 return res.status(401).json({ 
                     error: 'Invalid password' 
                 });
