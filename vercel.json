@@ -4,10 +4,6 @@
     {
       "src": "api/**/*.js",
       "use": "@vercel/node"
-    },
-    {
-      "src": "dist/**",
-      "use": "@vercel/static"
     }
   ],
   "rewrites": [
@@ -16,24 +12,8 @@
       "destination": "/api/$1"
     },
     {
-      "source": "/assets/(.*)",
-      "destination": "/dist/assets/$1"
-    },
-    {
-      "source": "/manifest.json",
-      "destination": "/dist/manifest.json"
-    },
-    {
-      "source": "/sw.js",
-      "destination": "/dist/sw.js"
-    },
-    {
-      "source": "/icons/(.*)",
-      "destination": "/dist/icons/$1"
-    },
-    {
       "source": "/(.*)",
-      "destination": "/dist/index.html"
+      "destination": "/"
     }
   ]
 }
