@@ -1,24 +1,26 @@
-const { Pool } = require('@neondatabase/serverless');
+// api/db.js
+import { neon } from '@neondatabase/serverless';
 
-let pool = null;
+const connectionString = process.env.DATABASE_URL;
 
-function getPool() {
-  if (!pool) {
-    pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-    });
-  }
-  return pool;
+if (!connectionString) {
+    console.error('❌ DATABASE_URL is not set in environment variables');
 }
 
-async function query(text, params) {
-  const client = await getPool().connect();
-  try {
-    const result = await client.query(text, params);
-    return result;
-  } finally {
-    client.release();
-  }
+// Создаем клиент Neon
+export const sql = neon(connectionString);
+
+// Функция для проверки подключения
+export async function testConnection() {
+    try {
+        const result = await sql`SELECT 1 as connected`;
+        console.log('✅ Database connected successfully');
+        return true;
+    } catch (error) {
+        console.error('❌ Database connection failed:', error);
+        return false;
+    }
 }
 
-module.exports = { query, getPool };
+// Для совместимости с другими файлами
+export default sql;
