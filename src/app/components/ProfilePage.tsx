@@ -274,7 +274,7 @@ export function ProfilePage({
               
               <div className="mt-3 mb-2">
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-sm text-gray-600">Уровень {userProfile.level}</span>
+                  <span className="text-sm text-gray-600">{userProfile.levelTitle || 'Новичок'} • Уровень {userProfile.level}</span>
                   <span className="text-sm text-gray-600">{userProfile.experience} опыта</span>
                 </div>
                 <div className="w-full bg-pink-100 rounded-full h-2">

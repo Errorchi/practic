@@ -92,7 +92,6 @@ async function getProfile(req, res, userId) {
       level: user.level,
       levelTitle: levelInfo.title,
       levelIcon: levelInfo.icon,
-      levelColor: levelInfo.color,
       tags: user.tags,
       purchasedIcons: user.purchased_icons || [],
       purchasedBackgrounds: user.purchased_backgrounds || [],

@@ -21,6 +21,7 @@ export interface UserProfile {
   backgroundStyle: string;
   experience: number;
   level: number;
+  levelTitle?: string;
   tags: string[];
   purchasedIcons?: string[];
   purchasedBackgrounds?: string[];
