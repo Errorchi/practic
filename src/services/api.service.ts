@@ -171,10 +171,7 @@ class ApiService {
        // console.log('Profile response:', response);
         
         if (response.success && response.profile) {
-            return{
-            ...response.profile,
-            levelTitle: response.profile.levelTitle || 'Новичок',
-        };
+            return response.profile;
         }
         
         throw new Error('Invalid profile response');

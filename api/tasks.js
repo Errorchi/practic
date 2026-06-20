@@ -210,6 +210,13 @@ async function createTask(req, res, userId) {
 
 async function completeTask(req, res, userId) {
   const { id } = req.body;
+  const levelTags = {
+    1: ['Новичок'],
+    2: ['Ученик'],
+    3: ['Эксперт'],
+    4: ['Мастер'],
+    5: ['Легенда']
+};
 
   if (!id) {
     res.status(400).json({ success: false, error: 'Task id is required' });
@@ -278,6 +285,10 @@ async function completeTask(req, res, userId) {
       [newExperience, userIdInt]
     );
   }
+  await query(
+    'UPDATE users SET tags = $1, updated_at = NOW() WHERE id = $2',
+    [levelTags[newLevel] || ['Новичок'], userIdInt]
+  );
 
   res.json({
     success: true,
