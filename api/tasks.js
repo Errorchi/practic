@@ -97,11 +97,18 @@ async function createTask(req, res, userId) {
         );
         let startDay = parseInt(existingSkills.rows[0].max_day) || 0;
 
-        // Создаем задачи на каждый день
+        // ✅ Создаем задачи на каждый день
         for (let i = 1; i <= duration; i++) {
             const day = startDay + i;
             const taskDeadline = new Date(deadlineDate);
-            taskDeadline.setDate(taskDeadline.getDate() + (i - 1) * 7); // Каждую неделю
+            // ✅ Добавляем i-1 дней (не недель!)
+            taskDeadline.setDate(taskDeadline.getDate() + (i - 1));
+            
+            // ✅ Проверяем, что дата валидна
+            if (isNaN(taskDeadline.getTime())) {
+                console.error('❌ Invalid task deadline for day:', day);
+                continue;
+            }
             
             const result = await query(
                 `INSERT INTO tasks (user_id, text, completed, deadline, priority, is_skill, skill_duration, original_deadline, parent_task_id, day_number)
@@ -122,7 +129,8 @@ async function createTask(req, res, userId) {
             );
             createdTasks.push({
                 id: result.rows[0].id,
-                day: day
+                day: day,
+                deadline: taskDeadline.toISOString()
             });
         }
 
