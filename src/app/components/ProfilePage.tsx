@@ -11,6 +11,24 @@ interface ProfilePageProps {
   onResetProgress: () => void;
 }
 
+function isValidEmail(email: string): boolean {
+  if (!email || typeof email !== 'string') return false;
+  if (email.length > 254) return false;
+  
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  if (!emailRegex.test(email)) return false;
+  
+  const parts = email.split('@');
+  if (parts.length !== 2) return false;
+  
+  const [localPart, domain] = parts;
+  if (localPart.length === 0 || localPart.length > 64) return false;
+  if (domain.length === 0 || domain.length > 255) return false;
+  if (/\s/.test(email)) return false;
+  
+  return true;
+}
+
 const backgroundStyles = [
   { id: 'default', name: 'По умолчанию', color: 'from-pink-100 to-pink-300', price: 0 },
   { id: 'beige', name: 'Бафф', color: 'from-stone-300 to-stone-500', price: 5 },
@@ -26,7 +44,7 @@ const backgroundStyles = [
 ];
 
 const characterIcons = [
-  { id: '👧', name: 'Человек', price: 0 },
+  { id: '🧑', name: 'Человек', price: 0 },
   { id: '👩‍🌾', name: 'Фермер', price: 30 },
   { id: '👩‍💼', name: 'Бизнесмен', price: 30 },
   { id: '👩‍🎨', name: 'Художник', price: 50},
@@ -57,6 +75,10 @@ export function ProfilePage({
   const [editEmail, setEditEmail] = useState(userProfile.email);
   const [localAchievements, setLocalAchievements] = useState<Achievement[]>(achievements);
   
+  const [emailError, setEmailError] = useState<string>('');
+  const [nameError, setNameError] = useState<string>('');
+  const [isSaving, setIsSaving] = useState(false);
+
   const [purchasedBackgrounds, setPurchasedBackgrounds] = useState<string[]>(
     userProfile.purchasedBackgrounds || ['default', userProfile.backgroundStyle]
   );
@@ -87,6 +109,19 @@ export function ProfilePage({
     };
     loadData();
   }, []);
+
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setEditEmail(value);
+    
+    if (value && !isValidEmail(value)) {
+      setEmailError('Пожалуйста, введите корректный email (например, user@example.com)');
+    } else if (value === userProfile.email) {
+      setEmailError(''); // Тот же email - ошибки нет
+    } else {
+      setEmailError('');
+    }
+  };
 
   const handlePurchaseBackground = async (styleId: string, price: number) => {
     const currentPurchased = [...purchasedBackgrounds];
@@ -152,16 +187,43 @@ export function ProfilePage({
   };
 
   const handleSaveSettings = async () => {
-    const updatedProfile = {
-      ...userProfile,
-      name: editName,
-      email: editEmail,
-      purchasedIcons: purchasedIcons,
-      purchasedBackgrounds: purchasedBackgrounds
-    };
-    await onUpdateProfile(updatedProfile);
-    setShowSettings(false);
+    if (editEmail && !isValidEmail(editEmail)) {
+      setEmailError('Пожалуйста, введите корректный email');
+      return;
+    }
+
+    setIsSaving(true);
+    setEmailError('');
+    setNameError('');
+
+    try {
+      const updatedProfile = {
+        ...userProfile,
+        name: editName,
+        email: editEmail.trim(),
+        purchasedIcons: purchasedIcons,
+        purchasedBackgrounds: purchasedBackgrounds
+      };
+      
+      await onUpdateProfile(updatedProfile);
+      setShowSettings(false);
+    } catch (error: any) {
+    
+      if (error.response?.data?.details) {
+        if (error.response.data.details.includes('email')) {
+          setEmailError(error.response.data.details);
+        } else {
+          alert(error.response.data.details);
+        }
+      } else {
+        alert('Ошибка при сохранении. Попробуйте позже.');
+      }
+      console.error('Failed to save settings:', error);
+    } finally {
+      setIsSaving(false);
+    }
   };
+
   
   const unlockedAchievements = localAchievements.filter(a => a.unlocked);
   const totalAchievementReward = localAchievements
@@ -246,6 +308,8 @@ export function ProfilePage({
                   onClick={() => {
                     setEditName(userProfile.name);
                     setEditEmail(userProfile.email);
+                    setEmailError('');
+                    setNameError('');
                     setShowSettings(false);
                   }}
                   className="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400 transition-colors font-semibold"
@@ -265,11 +329,13 @@ export function ProfilePage({
             >
               {userProfile.characterIcon || '👧'}
             </div>
-            <div className="flex-1">
-              <h2 className="text-3xl font-bold mb-1">{userProfile.name}</h2>
-              <p className="text-gray-600 flex items-center gap-2">
-                <Mail size={16} />
-                {userProfile.email}
+            <div className="flex-1 w-full min-w-0">
+              <h2 className="text-2xl sm:text-3xl font-bold mb-1 text-center sm:text-left break-words">{userProfile.name}</h2>
+              <p className="text-gray-600 flex items-center gap-2 justify-center sm:justify-start text-sm sm:text-base">
+                <Mail size={16} className="flex-shrink-0" />
+                <span className="break-all overflow-hidden text-ellipsis">
+                  {userProfile.email}
+                </span>
               </p>
               
               <div className="mt-3 mb-2">

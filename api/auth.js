@@ -29,6 +29,13 @@ export default async function handler(req, res) {
             });
         }
 
+        if (!isValidEmail(email)) {
+            return res.status(400).json({ 
+                error: 'Invalid email format',
+                details: 'Email must be a valid format (e.g., user@example.com)'
+            });
+        }
+
         // Регистрация
         if (action === 'register') {
             // Проверяем, существует ли пользователь
@@ -99,4 +106,26 @@ export default async function handler(req, res) {
             details: error.message 
         });
     }
+}
+
+function isValidEmail(email) {
+    if (!email || typeof email !== 'string') return false;
+    if (email.length > 254) return false;
+    
+    // Проверка формата
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email)) return false;
+    
+    // Проверка домена
+    const parts = email.split('@');
+    if (parts.length !== 2) return false;
+    
+    const [localPart, domain] = parts;
+    if (localPart.length === 0 || localPart.length > 64) return false;
+    if (domain.length === 0 || domain.length > 255) return false;
+    
+    // Проверка на запрещенные символы
+    if (/[\s]/.test(email)) return false;
+    
+    return true;
 }

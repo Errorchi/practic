@@ -1,5 +1,23 @@
 const { query } = require('./db');
 
+function isValidEmail(email) {
+    if (!email || typeof email !== 'string') return false;
+    if (email.length > 254) return false;
+    
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email)) return false;
+    
+    const parts = email.split('@');
+    if (parts.length !== 2) return false;
+    
+    const [localPart, domain] = parts;
+    if (localPart.length === 0 || localPart.length > 64) return false;
+    if (domain.length === 0 || domain.length > 255) return false;
+    if (/[\s]/.test(email)) return false;
+    
+    return true;
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS');
@@ -85,6 +103,29 @@ async function getProfile(req, res, userId) {
 async function updateProfile(req, res, userId) {
   const { name, email, characterIcon, backgroundStyle, experience, level, currency, tags, purchasedBackgrounds, purchasedIcons } = req.body;
 
+  if (email !== undefined) {
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid email format',
+        details: 'Please enter a valid email address (e.g., user@example.com)'
+      });
+    }
+
+    const existingUser = await query(
+      'SELECT id FROM users WHERE email = $1 AND id != $2',
+      [email.toLowerCase(), userId]
+    );
+
+    if (existingUser.rows.length > 0) {
+      return res.status(409).json({ 
+        success: false, 
+        error: 'Email already in use',
+        details: 'This email is already registered by another user'
+      });
+    }
+  }
+
   const updates = [];
   const params = [];
   let paramIndex = 1;
@@ -95,7 +136,7 @@ async function updateProfile(req, res, userId) {
   }
   if (email !== undefined) {
     updates.push(`email = $${paramIndex++}`);
-    params.push(email);
+    params.push(email.toLowerCase());
   }
   if (characterIcon !== undefined) {
     updates.push(`character_icon = $${paramIndex++}`);
@@ -143,5 +184,11 @@ async function updateProfile(req, res, userId) {
     params
   );
 
-  res.json({ success: true });
+  const updatedUser = await query(
+    'SELECT id, name, email, currency, character_icon, background_style, experience, level, tags, purchased_icons, purchased_backgrounds FROM users WHERE id = $1',
+    [userId]
+  );
+
+  res.json({ success: true,
+    profile: updatedUser.rows[0] });
 }

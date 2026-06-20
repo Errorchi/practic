@@ -66,6 +66,48 @@ async function getTasks(req, res, userId) {
 
   res.json(tasks);
 }
+function getMoscowDate() {
+  const now = new Date();
+  // Устанавливаем часовой пояс Москвы (UTC+3)
+  const moscowOffset = 3 * 60 * 60 * 1000; // 3 часа в миллисекундах
+  const moscowTime = new Date(now.getTime() + moscowOffset);
+  return moscowTime;
+}
+
+// ✅ Функция для проверки, является ли дата прошедшей
+function isPastDate(dateToCheck) {
+  const now = getMoscowDate();
+  const checkDate = new Date(dateToCheck);
+  
+  // Сравниваем только даты (без времени)
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const targetDate = new Date(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate());
+  
+  return targetDate < today;
+}
+
+// ✅ Функция для проверки, является ли время прошедшим (для сегодняшнего дня)
+function isPastTime(dateToCheck) {
+  const now = getMoscowDate();
+  const checkDate = new Date(dateToCheck);
+  
+  // Проверяем, что это сегодня
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const targetDate = new Date(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate());
+  
+  if (targetDate.getTime() !== today.getTime()) {
+    return false; // Это не сегодня, проверяем только дату
+  }
+  
+  // Если сегодня, проверяем время
+  return checkDate.getTime() < now.getTime();
+}
+
+  function adjustToUTC(date) {
+    const adjusted = new Date(date);
+    adjusted.setHours(adjusted.getHours() - 3); // Для Москвы UTC+3
+    return adjusted;
+  }
 
 async function createTask(req, res, userId) {
     const { text, completed, deadline, priority, is_skill, skill_duration, original_deadline, parent_task_id, day_number } = req.body;
@@ -81,11 +123,21 @@ async function createTask(req, res, userId) {
         return;
     }
 
-    // ✅ Функция для вычитания 3 часов (для Москвы)
-    function adjustToUTC(date) {
-        const adjusted = new Date(date);
-        adjusted.setHours(adjusted.getHours() - 3); // Для Москвы UTC+3
-        return adjusted;
+    if (isPastDate(deadlineDate)) {
+        return res.status(400).json({
+            success: false,
+            error: 'Cannot create task in the past',
+            details: 'Deadline must be today or in the future'
+        });
+    }
+
+    // ✅ ПРОВЕРКА: Если задача на сегодня, проверяем время
+    if (isPastTime(deadlineDate)) {
+        return res.status(400).json({
+            success: false,
+            error: 'Cannot create task for past time',
+            details: 'The specified time has already passed today'
+        });
     }
 
     const isSkillBoolean = is_skill ? true : false;
@@ -113,6 +165,16 @@ async function createTask(req, res, userId) {
         
         console.log('📊 Start day for this skill:', startDay);
         console.log('📊 Duration:', duration);
+
+                // ✅ Для навыков проверяем только первый день
+        const firstDayDeadline = new Date(deadlineDate);
+        if (isPastDate(firstDayDeadline)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Cannot create skill in the past',
+                details: 'First day of skill must be today or in the future'
+            });
+        }
 
         for (let i = 1; i <= duration; i++) {
             const day = startDay + i;
