@@ -81,23 +81,29 @@ async function createTask(req, res, userId) {
         return;
     }
 
+    // ✅ Функция для вычитания 3 часов (для Москвы)
+    function adjustToUTC(date) {
+        const adjusted = new Date(date);
+        adjusted.setHours(adjusted.getHours() - 3); // Для Москвы UTC+3
+        return adjusted;
+    }
+
     const isSkillBoolean = is_skill ? true : false;
     const completedBoolean = completed ? true : false;
     const userIdInt = parseInt(userId);
 
     // 🆕 Если это навык, создаем задачи на несколько дней
     if (isSkillBoolean) {
-        const duration = skill_duration || 7; // По умолчанию 7 дней
+        const duration = skill_duration || 7;
         const createdTasks = [];
 
-        // ✅ Ищем последнюю задачу ЭТОГО КОНКРЕТНОГО навыка (по тексту)
         const existingSkills = await query(
             `SELECT MAX(day_number) as max_day 
              FROM tasks 
              WHERE user_id = $1 
              AND is_skill = true 
              AND text LIKE $2`,
-            [userIdInt, `${text}%`] // Ищем задачи с таким же названием
+            [userIdInt, `${text}%`]
         );
         
         let startDay = 0;
@@ -108,7 +114,6 @@ async function createTask(req, res, userId) {
         console.log('📊 Start day for this skill:', startDay);
         console.log('📊 Duration:', duration);
 
-        // ✅ Создаем задачи на каждый день
         for (let i = 1; i <= duration; i++) {
             const day = startDay + i;
             const taskDeadline = new Date(deadlineDate);
@@ -119,7 +124,6 @@ async function createTask(req, res, userId) {
                 continue;
             }
             
-            // ✅ Проверяем, не существует ли уже задача на этот день для этого навыка
             const existingTask = await query(
                 `SELECT id FROM tasks 
                  WHERE user_id = $1 
@@ -134,6 +138,9 @@ async function createTask(req, res, userId) {
                 continue;
             }
             
+            // ✅ ✅ ✅ ВЫЧИТАЕМ 3 ЧАСА ДЛЯ НАВЫКОВ
+            const adjustedDate = adjustToUTC(taskDeadline);
+            
             const result = await query(
                 `INSERT INTO tasks (user_id, text, completed, deadline, priority, is_skill, skill_duration, original_deadline, parent_task_id, day_number)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
@@ -142,11 +149,11 @@ async function createTask(req, res, userId) {
                     userIdInt,
                     `${text} (День ${day})`,
                     false,
-                    taskDeadline.toISOString(),
+                    adjustedDate.toISOString(), // ✅ Скорректированная дата
                     priority || 'medium',
                     true,
                     duration,
-                    deadlineDate.toISOString(),
+                    adjustToUTC(deadlineDate).toISOString(), // ✅ Скорректированная оригинальная дата
                     null,
                     day
                 ]
@@ -154,12 +161,11 @@ async function createTask(req, res, userId) {
             createdTasks.push({
                 id: result.rows[0].id,
                 day: day,
-                deadline: taskDeadline.toISOString()
+                deadline: adjustedDate.toISOString()
             });
         }
 
         if (createdTasks.length === 0) {
-            // Если задачи не созданы, значит все дни уже заняты для этого навыка
             return res.status(400).json({
                 success: false,
                 error: 'Все дни для этого навыка уже созданы',
@@ -178,6 +184,9 @@ async function createTask(req, res, userId) {
     }
 
     // 🔹 Обычная задача (не навык)
+    // ✅ ✅ ✅ ВЫЧИТАЕМ 3 ЧАСА ДЛЯ ОБЫЧНОЙ ЗАДАЧИ
+    const adjustedDate = adjustToUTC(deadlineDate);
+    
     const result = await query(
         `INSERT INTO tasks (user_id, text, completed, deadline, priority, is_skill, skill_duration, original_deadline, parent_task_id, day_number)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
@@ -186,7 +195,7 @@ async function createTask(req, res, userId) {
             userIdInt,
             text,
             completedBoolean,
-            deadlineDate.toISOString(),
+            adjustedDate.toISOString(), // ✅ Скорректированная дата
             priority || 'medium',
             false,
             null,
