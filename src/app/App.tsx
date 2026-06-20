@@ -194,7 +194,7 @@ export default function App() {
   }
 
   return (
-    <div className={`h-screen flex flex-col bg-gradient-to-br ${userProfile.backgroundStyle === 'default' ? '' :
+    <div className={`h-screen flex flex-col bg-gradient-to-br ${userProfile.backgroundStyle === 'default' ? 'from-pink-100 to-pink-300' :
       userProfile.backgroundStyle === 'sunset' ? 'from-orange-200 to-pink-300' :
       userProfile.backgroundStyle === 'ocean' ? 'from-blue-200 to-cyan-300' :
       userProfile.backgroundStyle === 'forest' ? 'from-green-200 to-emerald-300' :

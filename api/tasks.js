@@ -76,11 +76,12 @@ async function createTask(req, res, userId) {
   }
 
   // ✅ Преобразование типов
-  const deadlineDate = new Date(deadline) - 3;
+  const deadlineDate = new Date(deadline);
   if (isNaN(deadlineDate.getTime())) {
     res.status(400).json({ success: false, error: 'Invalid deadline format' });
     return;
   }
+  const adjustedDate = new Date(deadlineDate.getTime() - 3 * 60 * 60 * 1000);
 
   const isSkillBoolean = is_skill ? true : false;
   const completedBoolean = completed ? true : false;
@@ -109,7 +110,7 @@ async function createTask(req, res, userId) {
       userIdInt,
       text,
       completedBoolean,
-      deadlineDate.toISOString(),
+      adjustedDate.toISOString(),
       priority || 'medium',
       isSkillBoolean,
       skill_duration || null,

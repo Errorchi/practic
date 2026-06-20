@@ -12,7 +12,7 @@ interface ProfilePageProps {
 }
 
 const backgroundStyles = [
-  { id: 'default', name: 'По умолчанию', color: 'from-pink-100 to-pink-400', price: 0 },
+  { id: 'default', name: 'По умолчанию', color: 'from-pink-100 to-pink-300', price: 0 },
   { id: 'beige', name: 'Бафф', color: 'from-stone-300 to-stone-500', price: 5 },
   { id: 'beach', name: 'Пляж', color: 'from-red-50 to-amber-100', price: 5 },
   { id: 'sunset', name: 'Закат', color: 'from-orange-200 to-pink-300', price: 100 },
