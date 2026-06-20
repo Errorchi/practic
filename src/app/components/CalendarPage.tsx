@@ -292,7 +292,7 @@ export function CalendarPage({
 
             {viewMode === 'week' && (
               <div className="bg-white rounded-xl p-4 shadow-md border-2 border-pink-200">
-                <div className="grid grid-cols-7 gap-2">
+                <div className="grid grid-cols-2 md:grid-cols-7 gap-2">
                   {weekDays.map((day, index) => {
                     const dayTasks = getTasksForDate(day);
                     const isToday = day.toDateString() === new Date().toDateString();
