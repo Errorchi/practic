@@ -31,23 +31,6 @@ module.exports = async (req, res) => {
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
-function getLevelInfo(level) {
-    const levels = [
-        { min: 1, title: 'Новичок', icon: '🌱', color: '#4CAF50' },
-        { min: 2, title: 'Ученик', icon: '📚', color: '#2196F3' },
-        { min: 3, title: 'Эксперт', icon: '⭐', color: '#FF9800' },
-        { min: 4, title: 'Мастер', icon: '🏆', color: '#9C27B0' },
-        { min: 5, title: 'Легенда', icon: '👑', color: '#F44336' }
-    ];
-    
-    let result = levels[0];
-    for (const l of levels) {
-        if (level >= l.min) {
-            result = l;
-        }
-    }
-    return result;
-}
 
 async function getProfile(req, res, userId) {
   const result = await query(
@@ -100,6 +83,23 @@ async function getProfile(req, res, userId) {
       totalAchievements: parseInt(totalAchievementsResult.rows[0].total) || 0
     }
   });
+}
+async function updateLevelTags(userId, level) {
+  const levelTags = {
+    1: ['Новичок'],
+    2: ['Ученик'],
+    3: ['Эксперт'],
+    4: ['Мастер'],
+    5: ['Легенда']
+  };
+  const tags = levelTags[level] || levelTags[5];
+    
+    await query(
+        'UPDATE users SET tags = $1, updated_at = NOW() WHERE id = $2',
+        [tags, userId]
+    );
+    
+    return tags;
 }
 
 async function updateProfile(req, res, userId) {

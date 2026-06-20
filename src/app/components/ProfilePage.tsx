@@ -162,7 +162,7 @@ export function ProfilePage({
     await onUpdateProfile(updatedProfile);
     setShowSettings(false);
   };
-
+  
   const unlockedAchievements = localAchievements.filter(a => a.unlocked);
   const totalAchievementReward = localAchievements
     .filter(a => a.unlocked)
