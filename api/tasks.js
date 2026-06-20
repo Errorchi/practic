@@ -76,7 +76,7 @@ async function createTask(req, res, userId) {
   }
 
   // ✅ Преобразование типов
-  const deadlineDate = new Date(deadline);
+  const deadlineDate = new Date(deadline) - 3;
   if (isNaN(deadlineDate.getTime())) {
     res.status(400).json({ success: false, error: 'Invalid deadline format' });
     return;
@@ -85,6 +85,21 @@ async function createTask(req, res, userId) {
   const isSkillBoolean = is_skill ? true : false;
   const completedBoolean = completed ? true : false;
   const userIdInt = parseInt(userId);
+
+  let finalDayNumber = day_number || 1;
+  if (isSkillBoolean) {
+    // Проверяем, есть ли уже скиллы у пользователя
+    const existingSkills = await query(
+      'SELECT MAX(day_number) as max_day FROM tasks WHERE user_id = $1 AND is_skill = true',
+      [userIdInt]
+    );
+    
+    if (existingSkills.rows[0].max_day) {
+      finalDayNumber = parseInt(existingSkills.rows[0].max_day) + 1;
+    } else {
+      finalDayNumber = 1;
+    }
+  }
 
   const result = await query(
     `INSERT INTO tasks (user_id, text, completed, deadline, priority, is_skill, skill_duration, original_deadline, parent_task_id, day_number)
@@ -130,13 +145,13 @@ async function completeTask(req, res, userId) {
   await query('UPDATE tasks SET completed = TRUE, updated_at = NOW() WHERE id = $1 AND user_id = $2', [id, userIdInt]);
   
   // 3. Начисляем валюту в зависимости от приоритета
-  let currencyReward = 5; // По умолчанию для "low"
+  let currencyReward = 2; // По умолчанию для "low"
   if (task.priority === 'medium') currencyReward = 5;
   if (task.priority === 'high') currencyReward = 10;
   
   // Если это скилл-задача, добавляем бонус
   if (task.is_skill) {
-    currencyReward += 5;
+    currencyReward += 1;
   }
 
   // Применяем начисление валюты
