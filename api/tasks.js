@@ -68,59 +68,92 @@ async function getTasks(req, res, userId) {
 }
 
 async function createTask(req, res, userId) {
-  const { text, completed, deadline, priority, is_skill, skill_duration, original_deadline, parent_task_id, day_number } = req.body;
+    const { text, completed, deadline, priority, is_skill, skill_duration, original_deadline, parent_task_id, day_number } = req.body;
 
-  if (!text || !deadline) {
-    res.status(400).json({ success: false, error: 'Text and deadline are required' });
-    return;
-  }
-
-  // ✅ Преобразование типов
-  const deadlineDate = new Date(deadline);
-  if (isNaN(deadlineDate.getTime())) {
-    res.status(400).json({ success: false, error: 'Invalid deadline format' });
-    return;
-  }
-  const adjustedDate = new Date(deadlineDate.getTime() - 3 * 60 * 60 * 1000);
-
-  const isSkillBoolean = is_skill ? true : false;
-  const completedBoolean = completed ? true : false;
-  const userIdInt = parseInt(userId);
-
-  let finalDayNumber = day_number || 1;
-  if (isSkillBoolean) {
-    // Проверяем, есть ли уже скиллы у пользователя
-    const existingSkills = await query(
-      'SELECT MAX(day_number) as max_day FROM tasks WHERE user_id = $1 AND is_skill = true',
-      [userIdInt]
-    );
-    
-    if (existingSkills.rows[0].max_day) {
-      finalDayNumber = parseInt(existingSkills.rows[0].max_day) + 1;
-    } else {
-      finalDayNumber = 1;
+    if (!text || !deadline) {
+        res.status(400).json({ success: false, error: 'Text and deadline are required' });
+        return;
     }
-  }
 
-  const result = await query(
-    `INSERT INTO tasks (user_id, text, completed, deadline, priority, is_skill, skill_duration, original_deadline, parent_task_id, day_number)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-     RETURNING id`,
-    [
-      userIdInt,
-      text,
-      completedBoolean,
-      adjustedDate.toISOString(),
-      priority || 'medium',
-      isSkillBoolean,
-      skill_duration || null,
-      original_deadline || null,
-      parent_task_id || null,
-      day_number || 1
-    ]
-  );
+    const deadlineDate = new Date(deadline);
+    if (isNaN(deadlineDate.getTime())) {
+        res.status(400).json({ success: false, error: 'Invalid deadline format' });
+        return;
+    }
 
-  res.status(201).json({ success: true, id: result.rows[0].id });
+    const isSkillBoolean = is_skill ? true : false;
+    const completedBoolean = completed ? true : false;
+    const userIdInt = parseInt(userId);
+
+    // 🆕 Если это навык, создаем задачи на несколько дней
+    if (isSkillBoolean) {
+        const duration = skill_duration || 7; // По умолчанию 7 дней
+        const createdTasks = [];
+
+        // Получаем текущий максимальный день для навыков
+        const existingSkills = await query(
+            'SELECT MAX(day_number) as max_day FROM tasks WHERE user_id = $1 AND is_skill = true',
+            [userIdInt]
+        );
+        let startDay = parseInt(existingSkills.rows[0].max_day) || 0;
+
+        // Создаем задачи на каждый день
+        for (let i = 1; i <= duration; i++) {
+            const day = startDay + i;
+            const taskDeadline = new Date(deadlineDate);
+            taskDeadline.setDate(taskDeadline.getDate() + (i - 1) * 7); // Каждую неделю
+            
+            const result = await query(
+                `INSERT INTO tasks (user_id, text, completed, deadline, priority, is_skill, skill_duration, original_deadline, parent_task_id, day_number)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                 RETURNING id`,
+                [
+                    userIdInt,
+                    `${text} (День ${day})`, // Добавляем номер дня в название
+                    false,
+                    taskDeadline.toISOString(),
+                    priority || 'medium',
+                    true,
+                    duration,
+                    deadlineDate.toISOString(),
+                    null,
+                    day
+                ]
+            );
+            createdTasks.push({
+                id: result.rows[0].id,
+                day: day
+            });
+        }
+
+        res.status(201).json({
+            success: true,
+            message: `Создано ${createdTasks.length} задач для навыка`,
+            tasks: createdTasks
+        });
+        return;
+    }
+
+    // 🔹 Обычная задача (не навык)
+    const result = await query(
+        `INSERT INTO tasks (user_id, text, completed, deadline, priority, is_skill, skill_duration, original_deadline, parent_task_id, day_number)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         RETURNING id`,
+        [
+            userIdInt,
+            text,
+            completedBoolean,
+            deadlineDate.toISOString(),
+            priority || 'medium',
+            false,
+            null,
+            null,
+            null,
+            1
+        ]
+    );
+
+    res.status(201).json({ success: true, id: result.rows[0].id });
 }
 
 async function completeTask(req, res, userId) {
