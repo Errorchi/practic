@@ -16,7 +16,7 @@ import {
 
 interface CalendarPageProps {
   tasks: Task[];
-  onAddTask: (task: Omit<Task, 'id'>) => void;
+  onAddTask: (task: Omit<Task, 'id'>) => Promise<void> | void;
   onTaskComplete: (taskId: string) => void;
   onDeleteTask: (taskId: string) => void;
 }
@@ -38,6 +38,10 @@ export function CalendarPage({
   const [newTaskIsSkill, setNewTaskIsSkill] = useState(false);
   const [newTaskSkillDuration, setNewTaskSkillDuration] = useState(1);
   const [newTaskTime, setNewTaskTime] = useState('09:00');
+  
+  // ✅ Состояния для ошибок
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const getTasksForDate = (date: Date) => {
     return tasks.filter(task => {
@@ -74,14 +78,48 @@ export function CalendarPage({
     }
   };
 
-  const handleAddTask = () => {
-    if (newTaskText.trim()) {
-      const selectedDateTime = new Date(selectedDate);
-      const [hours, minutes] = newTaskTime.split(':').map(Number);
-      selectedDateTime.setHours(hours, minutes, 0, 0);
-      
-      onAddTask({
-        text: newTaskText,
+  // ✅ Валидация даты
+  const validateTaskDate = (deadlineDateTime: Date): string | null => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const targetDate = new Date(deadlineDateTime.getFullYear(), deadlineDateTime.getMonth(), deadlineDateTime.getDate());
+    
+    if (targetDate < today) {
+      return '❌ Нельзя создавать задачи на прошедшие даты. Выберите сегодняшнюю или будущую дату.';
+    }
+    
+    if (targetDate.getTime() === today.getTime() && deadlineDateTime.getTime() < now.getTime()) {
+      return '❌ Нельзя создавать задачи на прошедшее время сегодня. Выберите будущее время.';
+    }
+    
+    return null;
+  };
+
+  // ✅ Исправленный handleAddTask с валидацией
+  const handleAddTask = async () => {
+    setErrorMessage(null);
+
+    if (!newTaskText.trim()) {
+      setErrorMessage('❌ Введите описание задачи');
+      return;
+    }
+
+    const selectedDateTime = new Date(selectedDate);
+    const [hours, minutes] = newTaskTime.split(':').map(Number);
+    selectedDateTime.setHours(hours, minutes, 0, 0);
+
+    // ✅ Валидация на клиенте
+    const validationError = validateTaskDate(selectedDateTime);
+    if (validationError) {
+      setErrorMessage(validationError);
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      await onAddTask({
+        text: newTaskText.trim(),
         completed: false,
         deadline: selectedDateTime.toISOString(),
         priority: newTaskPriority,
@@ -91,12 +129,35 @@ export function CalendarPage({
         parent_task_id: null,
         day_number: 1
       });
+      
       setNewTaskText('');
       setNewTaskPriority('medium');
       setNewTaskIsSkill(false);
       setNewTaskSkillDuration(1);
       setNewTaskTime('09:00');
       setShowAddForm(false);
+      
+    } catch (error: any) {
+      console.error('Failed to add task:', error);
+      
+      let errorMsg = 'Не удалось создать задачу. Попробуйте позже.';
+      
+      if (error.response?.data) {
+        const data = error.response.data;
+        if (data.message) {
+          errorMsg = data.message;
+        } else if (data.details) {
+          errorMsg = data.details;
+        } else if (data.error) {
+          errorMsg = data.error;
+        }
+      } else if (error.message) {
+        errorMsg = error.message;
+      }
+      
+      setErrorMessage(`❌ ${errorMsg}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -219,11 +280,6 @@ export function CalendarPage({
               <h2 className="text-2xl font-bold">
                 {getDisplayTitle()}
               </h2>
-              <button
-                onClick={goToToday}
-                className="mt-1 text-sm font-medium"
-              >
-              </button>
             </div>
             <button
               onClick={handleNextPeriod}
@@ -236,6 +292,7 @@ export function CalendarPage({
 
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
+            {/* Month View */}
             {viewMode === 'month' && (
               <div className="bg-white rounded-xl p-4 shadow-md border-2 border-pink-200">
                 <div className="grid grid-cols-7 gap-2 mb-2">
@@ -290,6 +347,7 @@ export function CalendarPage({
               </div>
             )}
 
+            {/* Week View */}
             {viewMode === 'week' && (
               <div className="bg-white rounded-xl p-4 shadow-md border-2 border-pink-200">
                 <div className="grid grid-cols-2 md:grid-cols-7 gap-2">
@@ -368,6 +426,7 @@ export function CalendarPage({
               </div>
             )}
 
+            {/* Day View */}
             {viewMode === 'day' && (
               <div className="bg-white rounded-xl p-4 shadow-md border-2 border-pink-200">
                 <div className="mb-6">
@@ -448,6 +507,7 @@ export function CalendarPage({
             )}
           </div>
 
+          {/* Right Sidebar */}
           <div className="space-y-4">
             <div className="bg-white rounded-xl p-4 shadow-md border-2 border-pink-200">
               <div className="flex items-center justify-between mb-4">
@@ -482,7 +542,10 @@ export function CalendarPage({
               <div className="border-t border-pink-100 pt-4">
                 {!showAddForm ? (
                   <button
-                    onClick={() => setShowAddForm(true)}
+                    onClick={() => {
+                      setShowAddForm(true);
+                      setErrorMessage(null);
+                    }}
                     className="w-full bg-pink-600 text-white py-2 rounded-lg hover:bg-pink-700 transition-colors font-semibold flex items-center justify-center gap-2"
                   >
                     <Plus size={20} />
@@ -490,12 +553,24 @@ export function CalendarPage({
                   </button>
                 ) : (
                   <div>
+                    {/* ✅ ОТОБРАЖЕНИЕ ОШИБКИ */}
+                    {errorMessage && (
+                      <div className="mb-2 p-2 bg-red-50 border-2 border-red-300 rounded-lg text-red-700 text-xs">
+                        {errorMessage}
+                      </div>
+                    )}
+                    
                     <input
                       type="text"
                       value={newTaskText}
-                      onChange={(e) => setNewTaskText(e.target.value)}
+                      onChange={(e) => {
+                        setNewTaskText(e.target.value);
+                        if (errorMessage) setErrorMessage(null);
+                      }}
                       placeholder="Описание задачи..."
-                      className="w-full px-3 py-2 border-2 border-pink-200 rounded-lg mb-2 focus:outline-none focus:border-pink-500 text-sm"
+                      className={`w-full px-3 py-2 border-2 rounded-lg mb-2 focus:outline-none focus:border-pink-500 text-sm ${
+                        errorMessage ? 'border-red-300' : 'border-pink-200'
+                      }`}
                       autoFocus
                     />
 
@@ -582,12 +657,21 @@ export function CalendarPage({
                     <div className="flex gap-2">
                       <button
                         onClick={handleAddTask}
-                        className="flex-1 bg-pink-600 text-white py-2 rounded-lg hover:bg-pink-700 transition-colors text-sm font-semibold"
+                        disabled={isSubmitting}
+                        className={`flex-1 py-2 rounded-lg transition-colors text-sm font-semibold ${
+                          isSubmitting
+                            ? 'bg-gray-400 text-white cursor-not-allowed'
+                            : 'bg-pink-600 text-white hover:bg-pink-700'
+                        }`}
                       >
-                        Добавить
+                        {isSubmitting ? 'Создание...' : 'Добавить'}
                       </button>
                       <button
-                        onClick={() => setShowAddForm(false)}
+                        onClick={() => {
+                          setShowAddForm(false);
+                          setErrorMessage(null);
+                          setNewTaskText('');
+                        }}
                         className="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400 transition-colors text-sm font-semibold"
                       >
                         Отмена
@@ -704,7 +788,7 @@ function TaskItem({
             {task.text}{getSkillDayInfo()}
           </p>
           
-          <div className="mt-1 flex items-center gap-2">
+          <div className="mt-1 flex items-center gap-2 flex-wrap">
             <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${getPriorityColorClass(task.priority)}`}>
               {getPriorityLabel(task.priority)}
             </span>
@@ -712,7 +796,7 @@ function TaskItem({
               <Clock size={12} />
               {formatTime(task.deadline)}
             </span>
-            {!!(task.is_skill && task.skill_duration && task.skill_duration > 1) && (
+            {task.is_skill && task.skill_duration && task.skill_duration > 1 && (
               <span className="text-xs bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full">
                 Навык
               </span>

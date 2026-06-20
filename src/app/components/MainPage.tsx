@@ -34,6 +34,8 @@ export function MainPage({
   const [newTaskTime, setNewTaskTime] = useState('09:00');
 
   const [streak, setStreak] = useState<DailyStreak | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useNotifications(tasks);
 
@@ -66,39 +68,98 @@ export function MainPage({
   const skills = todayTasks.filter(task => task.is_skill);
   const regularTasks = todayTasks.filter(task => !task.is_skill);
 
-  const handleAddTask = () => {
-    if (newTaskText.trim()) {
-        const deadlineDateTime = new Date(newTaskDeadline);
-        const [hours, minutes] = newTaskTime.split(':').map(Number);
-        deadlineDateTime.setHours(hours, minutes, 0, 0);
-        
-        const taskData = {
-            text: newTaskText,
-            completed: false,
-            deadline: deadlineDateTime.toISOString(),
-            priority: newTaskPriority,
-            is_skill: newTaskIsSkill,
-            skill_duration: newTaskIsSkill ? newTaskSkillDuration : undefined,
-            original_deadline: null,
-            parent_task_id: null,
-            day_number: 1
-        };
-        
-        onAddTask(taskData);
-        
-        setNewTaskText('');
-        setNewTaskPriority('medium');
-        setNewTaskIsSkill(false);
-        setNewTaskSkillDuration(1);
-        setNewTaskTime('09:00');
-        setNewTaskDeadline(() => {
-          const now = new Date();
-          const year = now.getFullYear();
-          const month = String(now.getMonth() + 1).padStart(2, '0');
-          const day = String(now.getDate()).padStart(2, '0');
-          return `${year}-${month}-${day}`;
-        });
-        setShowAddForm(false);
+  // ✅ Функция валидации
+  const validateTaskDate = (deadlineDateTime: Date): string | null => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const targetDate = new Date(deadlineDateTime.getFullYear(), deadlineDateTime.getMonth(), deadlineDateTime.getDate());
+    
+    if (targetDate < today) {
+      return '❌ Нельзя создавать задачи на прошедшие даты. Выберите сегодняшнюю или будущую дату.';
+    }
+    
+    if (targetDate.getTime() === today.getTime() && deadlineDateTime.getTime() < now.getTime()) {
+      return '❌ Нельзя создавать задачи на прошедшее время сегодня. Выберите будущее время.';
+    }
+    
+    return null;
+  };
+
+  // ✅ Исправленный handleAddTask с валидацией и обработкой ошибок
+  const handleAddTask = async () => {
+    // Очищаем предыдущую ошибку
+    setErrorMessage(null);
+
+    // Проверка текста
+    if (!newTaskText.trim()) {
+      setErrorMessage('❌ Введите описание задачи');
+      return;
+    }
+
+    // Собираем дату и время
+    const deadlineDateTime = new Date(newTaskDeadline);
+    const [hours, minutes] = newTaskTime.split(':').map(Number);
+    deadlineDateTime.setHours(hours, minutes, 0, 0);
+
+    // ✅ ВАЛИДАЦИЯ НА КЛИЕНТЕ
+    const validationError = validateTaskDate(deadlineDateTime);
+    if (validationError) {
+      setErrorMessage(validationError);
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const taskData = {
+        text: newTaskText.trim(),
+        completed: false,
+        deadline: deadlineDateTime.toISOString(),
+        priority: newTaskPriority,
+        is_skill: newTaskIsSkill,
+        skill_duration: newTaskIsSkill ? newTaskSkillDuration : undefined,
+        original_deadline: null,
+        parent_task_id: null,
+        day_number: 1
+      };
+      
+      await onAddTask(taskData);
+      
+      // Сброс формы
+      setNewTaskText('');
+      setNewTaskPriority('medium');
+      setNewTaskIsSkill(false);
+      setNewTaskSkillDuration(1);
+      setNewTaskTime('09:00');
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      setNewTaskDeadline(`${year}-${month}-${day}`);
+      setShowAddForm(false);
+      
+    } catch (error: any) {
+      console.error('Failed to add task:', error);
+      
+      // ✅ Извлекаем сообщение об ошибке из ответа сервера
+      let errorMsg = 'Не удалось создать задачу. Попробуйте позже.';
+      
+      if (error.response?.data) {
+        const data = error.response.data;
+        if (data.message) {
+          errorMsg = data.message;
+        } else if (data.details) {
+          errorMsg = data.details;
+        } else if (data.error) {
+          errorMsg = data.error;
+        }
+      } else if (error.message) {
+        errorMsg = error.message;
+      }
+      
+      setErrorMessage(`❌ ${errorMsg}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -173,7 +234,10 @@ export function MainPage({
 
         {!showAddForm ? (
           <button
-            onClick={() => setShowAddForm(true)}
+            onClick={() => {
+              setShowAddForm(true);
+              setErrorMessage(null);
+            }}
             className="w-full bg-pink-600 text-white py-4 rounded-xl hover:bg-pink-700 transition-colors font-semibold shadow-lg flex items-center justify-center gap-2"
           >
             <Plus size={24} />
@@ -183,12 +247,24 @@ export function MainPage({
           <div className="bg-white rounded-xl p-6 shadow-lg border-2 border-pink-200">
             <h3 className="font-bold mb-4">Добавить новую задачу</h3>
             
+            {/* ✅ ОТОБРАЖЕНИЕ ОШИБКИ */}
+            {errorMessage && (
+              <div className="mb-4 p-3 bg-red-50 border-2 border-red-300 rounded-lg text-red-700 text-sm">
+                {errorMessage}
+              </div>
+            )}
+            
             <input
               type="text"
               value={newTaskText}
-              onChange={(e) => setNewTaskText(e.target.value)}
+              onChange={(e) => {
+                setNewTaskText(e.target.value);
+                if (errorMessage) setErrorMessage(null);
+              }}
               placeholder="Описание задачи..."
-              className="w-full px-4 py-3 border-2 border-pink-200 rounded-lg mb-4 focus:outline-none focus:border-pink-500"
+              className={`w-full px-4 py-3 border-2 rounded-lg mb-4 focus:outline-none focus:border-pink-500 ${
+                errorMessage ? 'border-red-300' : 'border-pink-200'
+              }`}
               autoFocus
             />
 
@@ -295,12 +371,21 @@ export function MainPage({
             <div className="flex gap-2">
               <button
                 onClick={handleAddTask}
-                className="flex-1 bg-pink-600 text-white py-2 rounded-lg hover:bg-pink-700 transition-colors font-semibold"
+                disabled={isSubmitting}
+                className={`flex-1 py-2 rounded-lg transition-colors font-semibold ${
+                  isSubmitting
+                    ? 'bg-gray-400 text-white cursor-not-allowed'
+                    : 'bg-pink-600 text-white hover:bg-pink-700'
+                }`}
               >
-                Добавить задачу
+                {isSubmitting ? 'Создание...' : 'Добавить задачу'}
               </button>
               <button
-                onClick={() => setShowAddForm(false)}
+                onClick={() => {
+                  setShowAddForm(false);
+                  setErrorMessage(null);
+                  setNewTaskText('');
+                }}
                 className="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400 transition-colors font-semibold"
               >
                 Отмена
@@ -365,7 +450,7 @@ function TaskItem({
             {task.text}{getSkillDayInfo()}
           </p>
           
-          <div className="flex items-center gap-2 mt-2">
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
             <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getPriorityColorClass(task.priority)}`}>
               <Flag size={12} className="inline mr-1" />
               {getPriorityLabel(task.priority)}
@@ -376,7 +461,7 @@ function TaskItem({
               {formatTime(task.deadline)}
             </span>
 
-            {!!(task.is_skill && task.skill_duration && task.skill_duration > 1) && (
+            {task.is_skill && task.skill_duration && task.skill_duration > 1 && (
               <span className="text-xs bg-pink-100 text-pink-700 px-2 py-1 rounded-full">
                 Навык {task.skill_duration} дней
               </span>
