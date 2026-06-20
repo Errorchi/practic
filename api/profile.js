@@ -72,8 +72,6 @@ async function getProfile(req, res, userId) {
       backgroundStyle: user.background_style,
       experience: user.experience,
       level: user.level,
-      levelTitle: levelInfo.title,
-      levelIcon: levelInfo.icon,
       tags: user.tags,
       purchasedIcons: user.purchased_icons || [],
       purchasedBackgrounds: user.purchased_backgrounds || [],
