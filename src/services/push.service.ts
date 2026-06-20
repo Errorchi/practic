@@ -102,7 +102,6 @@ export class NotificationService {
     const now = Date.now();
     const reminderTime = deadlineTime - 30 * 60 * 1000;
 
-    // Проверка на валидность даты
     if (isNaN(deadlineTime)) {
       console.error('❌ Невалидная дата задачи:', task);
       return;
@@ -112,11 +111,9 @@ export class NotificationService {
     console.log(`📅 Сейчас: ${new Date(now).toLocaleString()}`);
     console.log(`📅 Напоминание в: ${new Date(reminderTime).toLocaleString()}`);
 
-    // Если время напоминания уже прошло
     if (reminderTime <= now) {
       console.log(`⏰ Время напоминания для задачи "${task.text}" уже прошло`);
       
-      // Если задача еще не просрочена, показываем уведомление сразу
       if (deadlineTime > now) {
         const minutesLeft = Math.round((deadlineTime - now) / 60000);
         if (minutesLeft > 0 && minutesLeft <= 60) {
@@ -138,9 +135,14 @@ export class NotificationService {
     const minutesDelay = Math.round(delay / 60000);
     console.log(`📅 Напоминание для "${task.text}" через ${minutesDelay} минут (в ${new Date(reminderTime).toLocaleString()})`);
 
-    // Не планируем если больше 24 часов
-    if (delay > 24 * 60 * 60 * 1000) {
-      console.log(`⏰ Напоминание через ${minutesDelay} минут (> 24 часов), пропускаем`);
+    // ✅ УБИРАЕМ ПРОВЕРКУ НА 24 ЧАСА
+    // Теперь планируем ВСЕ напоминания, независимо от времени
+
+    // Для очень долгих напоминаний (> 30 дней) используем другой подход
+    if (delay > 30 * 24 * 60 * 60 * 1000) {
+      console.log(`📅 Напоминание через ${Math.round(delay / (24 * 60 * 60 * 1000))} дней, сохраняем в localStorage`);
+      // Сохраняем в localStorage, чтобы восстановить позже
+      this.saveScheduledReminder(task.id, -1); // -1 означает "долгосрочное"
       return;
     }
 
