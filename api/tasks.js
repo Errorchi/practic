@@ -90,19 +90,22 @@ async function createTask(req, res, userId) {
         const duration = skill_duration || 7; // По умолчанию 7 дней
         const createdTasks = [];
 
-        // ✅ Получаем максимальный день для навыков
+        // ✅ Ищем последнюю задачу ЭТОГО КОНКРЕТНОГО навыка (по тексту)
         const existingSkills = await query(
-            'SELECT MAX(day_number) as max_day FROM tasks WHERE user_id = $1 AND is_skill = true',
-            [userIdInt]
+            `SELECT MAX(day_number) as max_day 
+             FROM tasks 
+             WHERE user_id = $1 
+             AND is_skill = true 
+             AND text LIKE $2`,
+            [userIdInt, `${text}%`] // Ищем задачи с таким же названием
         );
         
-        // ✅ Если есть существующие задачи, начинаем со следующего дня
         let startDay = 0;
         if (existingSkills.rows[0].max_day !== null) {
             startDay = parseInt(existingSkills.rows[0].max_day);
         }
         
-        console.log('📊 Start day:', startDay);
+        console.log('📊 Start day for this skill:', startDay);
         console.log('📊 Duration:', duration);
 
         // ✅ Создаем задачи на каждый день
@@ -116,10 +119,14 @@ async function createTask(req, res, userId) {
                 continue;
             }
             
-            // ✅ Проверяем, не существует ли уже задача на этот день
+            // ✅ Проверяем, не существует ли уже задача на этот день для этого навыка
             const existingTask = await query(
-                'SELECT id FROM tasks WHERE user_id = $1 AND is_skill = true AND day_number = $2',
-                [userIdInt, day]
+                `SELECT id FROM tasks 
+                 WHERE user_id = $1 
+                 AND is_skill = true 
+                 AND text LIKE $2 
+                 AND day_number = $3`,
+                [userIdInt, `${text}%`, day]
             );
             
             if (existingTask.rows.length > 0) {
@@ -151,9 +158,8 @@ async function createTask(req, res, userId) {
             });
         }
 
-        // ✅ Проверяем, что задачи созданы
         if (createdTasks.length === 0) {
-            // Если задачи не созданы, значит все дни уже заняты
+            // Если задачи не созданы, значит все дни уже заняты для этого навыка
             return res.status(400).json({
                 success: false,
                 error: 'Все дни для этого навыка уже созданы',
@@ -163,7 +169,7 @@ async function createTask(req, res, userId) {
 
         res.status(201).json({
             success: true,
-            message: `Создано ${createdTasks.length} задач для навыка (дни ${createdTasks[0].day} - ${createdTasks[createdTasks.length - 1].day})`,
+            message: `Создано ${createdTasks.length} задач для навыка "${text}" (дни ${createdTasks[0].day} - ${createdTasks[createdTasks.length - 1].day})`,
             tasks: createdTasks,
             total_days: duration,
             start_day: startDay
