@@ -273,14 +273,6 @@ async function completeTask(req, res, userId) {
       'UPDATE users SET experience = $1, level = $2, currency = currency + $3, updated_at = NOW() WHERE id = $4',
       [newExperience, newLevel, levelUpReward, userIdInt]
     );
-
-        const levelTags = {
-        1: ['Новичок'],
-        2: ['Ученик'],
-        3: ['Эксперт'],
-        4: ['Мастер'],
-        5: ['Легенда']
-    };
     
     const newTags = levelTags[newLevel] || levelTags[5];
     await query(

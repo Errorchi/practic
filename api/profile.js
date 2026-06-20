@@ -45,7 +45,6 @@ async function getProfile(req, res, userId) {
   }
 
   const user = result.rows[0];
-  const levelInfo = getLevelInfo(user.level);
 
   // Get completed tasks count
   const tasksResult = await query(
@@ -83,23 +82,6 @@ async function getProfile(req, res, userId) {
       totalAchievements: parseInt(totalAchievementsResult.rows[0].total) || 0
     }
   });
-}
-async function updateLevelTags(userId, level) {
-  const levelTags = {
-    1: ['Новичок'],
-    2: ['Ученик'],
-    3: ['Эксперт'],
-    4: ['Мастер'],
-    5: ['Легенда']
-  };
-  const tags = levelTags[level] || levelTags[5];
-    
-    await query(
-        'UPDATE users SET tags = $1, updated_at = NOW() WHERE id = $2',
-        [tags, userId]
-    );
-    
-    return tags;
 }
 
 async function updateProfile(req, res, userId) {
