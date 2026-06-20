@@ -3,14 +3,34 @@ export class NotificationService {
   private static instance: NotificationService;
   private permissionGranted = false;
   private timers: Map<string, number> = new Map();
+  private swReady = false;
 
-  private constructor() {}
+  private constructor() {
+    // Проверяем Service Worker при создании
+    this.checkServiceWorker();
+  }
 
   static getInstance(): NotificationService {
     if (!NotificationService.instance) {
       NotificationService.instance = new NotificationService();
     }
     return NotificationService.instance;
+  }
+
+  private async checkServiceWorker() {
+    try {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        if (registrations.length > 0) {
+          this.swReady = true;
+          console.log('✅ Service Worker найден');
+        } else {
+          console.log('⚠️ Service Worker не зарегистрирован');
+        }
+      }
+    } catch (error) {
+      console.error('Ошибка проверки SW:', error);
+    }
   }
 
   async requestPermission(): Promise<boolean> {
@@ -39,45 +59,39 @@ export class NotificationService {
     }
 
     if (!this.permissionGranted) {
-      console.log('Уведомления не разрешены');
+      console.log('🔕 Уведомления не разрешены');
       return;
     }
 
     try {
-      // Проверяем, что документ видим (страница открыта)
-      if (document.hidden) {
-        // Если страница скрыта, используем Service Worker
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.ready.then(registration => {
-            registration.showNotification(title, {
-              ...options,
-              icon: options?.icon || '/icons/icon-192.png',
-              badge: options?.badge || '/icons/icon-192.png',
-              vibrate: [200, 100, 200],
-              requireInteraction: true,
-              data: options?.data || {}
-            });
-          }).catch(err => {
-            console.error('SW notification failed:', err);
-            // Fallback
-            new Notification(title, options);
-          });
-        } else {
-          new Notification(title, options);
-        }
-      } else {
-        // Если страница открыта, показываем обычное уведомление
-        const notification = new Notification(title, {
-          ...options,
-          icon: options?.icon || '/icons/icon-192.png',
-          badge: options?.badge || '/icons/icon-192.png'
-        });
+      // Всегда используем обычное уведомление (более надежно)
+      const notification = new Notification(title, {
+        ...options,
+        icon: options?.icon || '/icons/icon-192.png',
+        badge: options?.badge || '/icons/icon-192.png',
+        vibrate: [200, 100, 200],
+        requireInteraction: true,
+        silent: false,
+        tag: options?.tag || `notification-${Date.now()}`
+      });
 
-        notification.onclick = () => {
-          window.focus();
-          notification.close();
-        };
-      }
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+        if (options?.data?.url) {
+          window.location.href = options.data.url;
+        }
+      };
+
+      notification.onshow = () => {
+        console.log('✅ Уведомление показано:', title);
+      };
+
+      notification.onerror = (error) => {
+        console.error('❌ Ошибка показа уведомления:', error);
+      };
+
+      return notification;
     } catch (error) {
       console.error('Failed to show notification:', error);
     }
@@ -88,6 +102,16 @@ export class NotificationService {
     const now = Date.now();
     const reminderTime = deadlineTime - 30 * 60 * 1000;
 
+    // Проверка на валидность даты
+    if (isNaN(deadlineTime)) {
+      console.error('❌ Невалидная дата задачи:', task);
+      return;
+    }
+
+    console.log(`📅 Задача "${task.text}" deadline: ${new Date(deadlineTime).toLocaleString()}`);
+    console.log(`📅 Сейчас: ${new Date(now).toLocaleString()}`);
+    console.log(`📅 Напоминание в: ${new Date(reminderTime).toLocaleString()}`);
+
     // Если время напоминания уже прошло
     if (reminderTime <= now) {
       console.log(`⏰ Время напоминания для задачи "${task.text}" уже прошло`);
@@ -95,22 +119,33 @@ export class NotificationService {
       // Если задача еще не просрочена, показываем уведомление сразу
       if (deadlineTime > now) {
         const minutesLeft = Math.round((deadlineTime - now) / 60000);
-        this.showNotification(
-          '⏰ Срочно! Задача скоро закончится!',
-          {
-            body: `Задача "${task.text}" должна быть выполнена через ${minutesLeft} минут!`,
-            tag: `task-${task.id}`,
-            data: { taskId: task.id, url: '/' }
-          }
-        );
+        if (minutesLeft > 0 && minutesLeft <= 60) {
+          console.log(`🔔 Показываем срочное уведомление: ${minutesLeft} минут до дедлайна`);
+          this.showNotification(
+            '⏰ Срочно! Задача скоро закончится!',
+            {
+              body: `Задача "${task.text}" должна быть выполнена через ${minutesLeft} минут!`,
+              tag: `task-${task.id}`,
+              data: { taskId: task.id, url: '/' }
+            }
+          );
+        }
       }
       return;
     }
 
     const delay = reminderTime - now;
-    console.log(`📅 Напоминание для "${task.text}" через ${Math.round(delay / 60000)} минут`);
+    const minutesDelay = Math.round(delay / 60000);
+    console.log(`📅 Напоминание для "${task.text}" через ${minutesDelay} минут (в ${new Date(reminderTime).toLocaleString()})`);
+
+    // Не планируем если больше 24 часов
+    if (delay > 24 * 60 * 60 * 1000) {
+      console.log(`⏰ Напоминание через ${minutesDelay} минут (> 24 часов), пропускаем`);
+      return;
+    }
 
     const timeoutId = window.setTimeout(() => {
+      console.log(`🔔 ОТПРАВКА УВЕДОМЛЕНИЯ для задачи "${task.text}"`);
       this.showNotification(
         '⏰ Напоминание о задаче!',
         {
@@ -124,7 +159,6 @@ export class NotificationService {
       );
     }, delay);
 
-    // Сохраняем таймер
     this.timers.set(task.id, timeoutId);
     this.saveScheduledReminder(task.id, timeoutId);
   }
@@ -140,13 +174,11 @@ export class NotificationService {
   }
 
   cancelReminder(taskId: string) {
-    // Отменяем таймер в памяти
     if (this.timers.has(taskId)) {
       clearTimeout(this.timers.get(taskId)!);
       this.timers.delete(taskId);
     }
 
-    // Отменяем таймер из localStorage
     try {
       const reminders = JSON.parse(localStorage.getItem('scheduledReminders') || '{}');
       if (reminders[taskId]) {
@@ -160,7 +192,6 @@ export class NotificationService {
     }
   }
 
-  // Восстанавливаем таймеры после перезагрузки страницы
   restoreReminders(tasks: { id: string; text: string; deadline: string; priority: string }[]) {
     try {
       const reminders = JSON.parse(localStorage.getItem('scheduledReminders') || '{}');
@@ -168,7 +199,7 @@ export class NotificationService {
 
       Object.entries(reminders).forEach(([taskId, timeoutId]) => {
         const task = tasks.find(t => t.id === taskId);
-        if (!task || task.completed) {
+        if (!task) {
           this.cancelReminder(taskId);
           return;
         }
@@ -176,16 +207,24 @@ export class NotificationService {
         const deadlineTime = new Date(task.deadline).getTime();
         const reminderTime = deadlineTime - 30 * 60 * 1000;
 
-        if (reminderTime > now) {
-          // Пересоздаем таймер
+        if (reminderTime > now && !task.completed) {
           this.scheduleTaskReminder(task);
         } else {
-          // Удаляем просроченный
           this.cancelReminder(taskId);
         }
       });
     } catch (error) {
       console.error('Failed to restore reminders:', error);
     }
+  }
+
+  // Тестовая функция для проверки уведомлений
+  testNotification() {
+    console.log('🔔 Тестовое уведомление');
+    this.showNotification('🔔 Тестовое уведомление!', {
+      body: 'Если вы видите это - уведомления работают!',
+      icon: '/icons/icon-192.png',
+      requireInteraction: true
+    });
   }
 }

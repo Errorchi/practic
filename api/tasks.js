@@ -66,10 +66,11 @@ async function getTasks(req, res, userId) {
 
   res.json(tasks);
 }
+
+// ✅ Функция для получения текущей даты в Москве (UTC+3)
 function getMoscowDate() {
   const now = new Date();
-  // Устанавливаем часовой пояс Москвы (UTC+3)
-  const moscowOffset = 3 * 60 * 60 * 1000; // 3 часа в миллисекундах
+  const moscowOffset = 3 * 60 * 60 * 1000;
   const moscowTime = new Date(now.getTime() + moscowOffset);
   return moscowTime;
 }
@@ -79,7 +80,6 @@ function isPastDate(dateToCheck) {
   const now = getMoscowDate();
   const checkDate = new Date(dateToCheck);
   
-  // Сравниваем только даты (без времени)
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const targetDate = new Date(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate());
   
@@ -91,23 +91,33 @@ function isPastTime(dateToCheck) {
   const now = getMoscowDate();
   const checkDate = new Date(dateToCheck);
   
-  // Проверяем, что это сегодня
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const targetDate = new Date(checkDate.getFullYear(), checkDate.getMonth(), checkDate.getDate());
   
   if (targetDate.getTime() !== today.getTime()) {
-    return false; // Это не сегодня, проверяем только дату
+    return false;
   }
   
-  // Если сегодня, проверяем время
   return checkDate.getTime() < now.getTime();
 }
 
-  function adjustToUTC(date) {
-    const adjusted = new Date(date);
-    adjusted.setHours(adjusted.getHours() - 3); // Для Москвы UTC+3
-    return adjusted;
-  }
+// ✅ Функция для форматирования даты (ДОБАВЛЕНА!)
+function formatDate(date) {
+  const d = new Date(date);
+  return d.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function adjustToUTC(date) {
+  const adjusted = new Date(date);
+  adjusted.setHours(adjusted.getHours() - 3);
+  return adjusted;
+}
 
 async function createTask(req, res, userId) {
     const { text, completed, deadline, priority, is_skill, skill_duration, original_deadline, parent_task_id, day_number } = req.body;
@@ -123,6 +133,7 @@ async function createTask(req, res, userId) {
         return;
     }
 
+    // ✅ Проверка: нельзя создавать задачи в прошлом
     if (isPastDate(deadlineDate)) {
         return res.status(400).json({
             success: false,
@@ -151,24 +162,7 @@ async function createTask(req, res, userId) {
         const duration = skill_duration || 7;
         const createdTasks = [];
 
-        const existingSkills = await query(
-            `SELECT MAX(day_number) as max_day 
-             FROM tasks 
-             WHERE user_id = $1 
-             AND is_skill = true 
-             AND text LIKE $2`,
-            [userIdInt, `${text}%`]
-        );
-        
-        let startDay = 0;
-        if (existingSkills.rows[0].max_day !== null) {
-            startDay = parseInt(existingSkills.rows[0].max_day);
-        }
-        
-        console.log('📊 Start day for this skill:', startDay);
-        console.log('📊 Duration:', duration);
-
-                // ✅ Для навыков проверяем только первый день
+        // ✅ Для навыков проверяем первый день
         const firstDayDeadline = new Date(deadlineDate);
         if (isPastDate(firstDayDeadline)) {
             return res.status(400).json({
@@ -188,6 +182,22 @@ async function createTask(req, res, userId) {
             });
         }
 
+        const existingSkills = await query(
+            `SELECT MAX(day_number) as max_day 
+             FROM tasks 
+             WHERE user_id = $1 
+             AND is_skill = true 
+             AND text LIKE $2`,
+            [userIdInt, `${text}%`]
+        );
+        
+        let startDay = 0;
+        if (existingSkills.rows[0].max_day !== null) {
+            startDay = parseInt(existingSkills.rows[0].max_day);
+        }
+        
+        console.log('📊 Start day for this skill:', startDay);
+        console.log('📊 Duration:', duration);
 
         for (let i = 1; i <= duration; i++) {
             const day = startDay + i;
@@ -213,7 +223,6 @@ async function createTask(req, res, userId) {
                 continue;
             }
             
-            // ✅ ✅ ✅ ВЫЧИТАЕМ 3 ЧАСА ДЛЯ НАВЫКОВ
             const adjustedDate = adjustToUTC(taskDeadline);
             
             const result = await query(
@@ -224,11 +233,11 @@ async function createTask(req, res, userId) {
                     userIdInt,
                     `${text} (День ${day})`,
                     false,
-                    adjustedDate.toISOString(), // ✅ Скорректированная дата
+                    adjustedDate.toISOString(),
                     priority || 'medium',
                     true,
                     duration,
-                    adjustToUTC(deadlineDate).toISOString(), // ✅ Скорректированная оригинальная дата
+                    adjustToUTC(deadlineDate).toISOString(),
                     null,
                     day
                 ]
@@ -259,7 +268,6 @@ async function createTask(req, res, userId) {
     }
 
     // 🔹 Обычная задача (не навык)
-    // ✅ ✅ ✅ ВЫЧИТАЕМ 3 ЧАСА ДЛЯ ОБЫЧНОЙ ЗАДАЧИ
     const adjustedDate = adjustToUTC(deadlineDate);
     
     const result = await query(
@@ -270,7 +278,7 @@ async function createTask(req, res, userId) {
             userIdInt,
             text,
             completedBoolean,
-            adjustedDate.toISOString(), // ✅ Скорректированная дата
+            adjustedDate.toISOString(),
             priority || 'medium',
             false,
             null,
@@ -286,7 +294,6 @@ async function createTask(req, res, userId) {
 async function completeTask(req, res, userId) {
   const { id } = req.body;
 
-
   if (!id) {
     res.status(400).json({ success: false, error: 'Task id is required' });
     return;
@@ -294,7 +301,6 @@ async function completeTask(req, res, userId) {
 
   const userIdInt = parseInt(userId);
 
-  // 1. Получаем задачу
   const taskResult = await query('SELECT * FROM tasks WHERE id = $1 AND user_id = $2', [id, userIdInt]);
   if (taskResult.rows.length === 0) {
     res.status(404).json({ success: false, error: 'Task not found' });
@@ -303,31 +309,25 @@ async function completeTask(req, res, userId) {
 
   const task = taskResult.rows[0];
 
-  // 2. Отмечаем задачу как выполненную
   await query('UPDATE tasks SET completed = TRUE, updated_at = NOW() WHERE id = $1 AND user_id = $2', [id, userIdInt]);
   
-  // 3. Начисляем валюту в зависимости от приоритета
-  let currencyReward = 2; // По умолчанию для "low"
+  let currencyReward = 2;
   if (task.priority === 'medium') currencyReward = 5;
   if (task.priority === 'high') currencyReward = 10;
   
-  // Если это скилл-задача, добавляем бонус
   if (task.is_skill) {
     currencyReward += 1;
   }
 
-  // Применяем начисление валюты
   await query(
     'UPDATE users SET currency = currency + $1, updated_at = NOW() WHERE id = $2',
     [currencyReward, userIdInt]
   );
 
-  // 4. Рассчитываем награду за опыт
   const priorityMultiplier = task.priority === 'high' ? 3 : task.priority === 'medium' ? 2 : 1;
   const baseXP = 10;
   const xpReward = baseXP * priorityMultiplier;
 
-  // 5. Получаем текущие данные пользователя
   const userResult = await query('SELECT experience, level FROM users WHERE id = $1', [userIdInt]);
   const user = userResult.rows[0];
   let newExperience = user.experience + xpReward;
@@ -335,14 +335,12 @@ async function completeTask(req, res, userId) {
   let leveledUp = false;
   let levelUpReward = 0;
 
-  // 6. Проверяем повышение уровня
   const xpForNextLevel = newLevel * 100;
   if (newExperience >= xpForNextLevel) {
     newExperience -= xpForNextLevel;
     newLevel += 1;
     leveledUp = true;
 
-    // 🪙 Бонус за повышение уровня
     levelUpReward = newLevel * 50;
     await query(
       'UPDATE users SET experience = $1, level = $2, currency = currency + $3, updated_at = NOW() WHERE id = $4',
@@ -363,12 +361,12 @@ async function completeTask(req, res, userId) {
 
   res.json({
     success: true,
-    xpReward,                // Сколько опыта получено
-    currencyReward,          // 🪙 Сколько валюты получено за задачу
-    leveledUp,               // Было ли повышение уровня
+    xpReward,
+    currencyReward,
+    leveledUp,
     newLevel: leveledUp ? newLevel : undefined,
-    levelUpReward: leveledUp ? levelUpReward : undefined, // 🪙 Бонус за уровень
-    totalCurrency: user.currency + currencyReward + (leveledUp ? levelUpReward : 0) // Общая валюта
+    levelUpReward: leveledUp ? levelUpReward : undefined,
+    totalCurrency: user.currency + currencyReward + (leveledUp ? levelUpReward : 0)
   });
 }
 

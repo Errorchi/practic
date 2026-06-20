@@ -13,7 +13,8 @@ export const useNotifications = (tasks: Task[]) => {
       if (initializedRef.current) return;
       initializedRef.current = true;
 
-      // Запрашиваем разрешение
+      console.log('🔔 Инициализация уведомлений...');
+
       const granted = await notificationService.requestPermission();
       
       if (!granted) {
@@ -23,10 +24,13 @@ export const useNotifications = (tasks: Task[]) => {
 
       console.log('✅ Уведомления разрешены');
 
-      // Восстанавливаем таймеры после перезагрузки
-      notificationService.restoreReminders(tasks);
+      // Тестовое уведомление
+      setTimeout(() => {
+        notificationService.testNotification();
+      }, 2000);
 
-      // Планируем напоминания
+      // Восстанавливаем таймеры
+      notificationService.restoreReminders(tasks);
       scheduleReminders();
     };
 
@@ -35,7 +39,6 @@ export const useNotifications = (tasks: Task[]) => {
       
       tasks.forEach(task => {
         if (task.completed) {
-          // Если задача выполнена, отменяем напоминание
           if (scheduledTasksRef.current.has(task.id)) {
             notificationService.cancelReminder(task.id);
             scheduledTasksRef.current.delete(task.id);
@@ -44,9 +47,14 @@ export const useNotifications = (tasks: Task[]) => {
         }
 
         const deadlineTime = new Date(task.deadline).getTime();
+        
+        // Пропускаем невалидные даты
+        if (isNaN(deadlineTime)) {
+          return;
+        }
+
         const reminderTime = deadlineTime - 30 * 60 * 1000;
         
-        // Если задача уже просрочена
         if (deadlineTime <= now) {
           if (scheduledTasksRef.current.has(task.id)) {
             notificationService.cancelReminder(task.id);
@@ -55,10 +63,11 @@ export const useNotifications = (tasks: Task[]) => {
           return;
         }
 
-        // Если время напоминания уже прошло, но задача не выполнена
+        // Если напоминание должно быть сейчас
         if (reminderTime <= now && !scheduledTasksRef.current.has(task.id)) {
           const minutesLeft = Math.round((deadlineTime - now) / 60000);
-          if (minutesLeft > 0) {
+          if (minutesLeft > 0 && minutesLeft <= 60) {
+            console.log(`🔔 Срочное уведомление для "${task.text}" (${minutesLeft} мин)`);
             notificationService.showNotification(
               '⏰ Срочно! Задача скоро закончится!',
               {
@@ -74,11 +83,11 @@ export const useNotifications = (tasks: Task[]) => {
 
         // Планируем напоминание
         if (!scheduledTasksRef.current.has(task.id) && reminderTime > now) {
+          console.log(`📅 Планируем напоминание для "${task.text}"`);
           notificationService.scheduleTaskReminder(task);
           scheduledTasksRef.current.add(task.id);
         }
         
-        // Если время напоминания уже прошло, удаляем из отслеживаемых
         if (reminderTime <= now) {
           scheduledTasksRef.current.delete(task.id);
         }
@@ -87,12 +96,10 @@ export const useNotifications = (tasks: Task[]) => {
 
     init();
 
-    // Проверяем каждые 30 секунд
     const interval = setInterval(scheduleReminders, 30000);
 
     return () => {
       clearInterval(interval);
-      // Очищаем все таймеры при размонтировании
       scheduledTasksRef.current.forEach(taskId => {
         notificationService.cancelReminder(taskId);
       });
