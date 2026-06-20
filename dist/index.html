@@ -1,13 +1,31 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
   <head>
     <meta charset="UTF-8" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Task Calendar App</title>
-    <script type="module" crossorigin src="/assets/index-Cj-_vobz.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-CWZnoLKg.css">
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/png" href="/icons/icon-72.png" />
+    <script type="module" crossorigin src="/assets/index-DvqZk_W5.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CMfdeqrk.css">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"></div>
+    
+    <!-- Регистрация Service Worker -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => {
+              console.log('✅ Service Worker зарегистрирован:', reg);
+            })
+            .catch(err => {
+              console.error('❌ Ошибка регистрации Service Worker:', err);
+            });
+        });
+      }
+    </script>
   </body>
 </html>
