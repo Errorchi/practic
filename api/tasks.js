@@ -126,17 +126,19 @@ async function createTask(req, res, userId) {
     if (isPastDate(deadlineDate)) {
         return res.status(400).json({
             success: false,
-            error: 'Cannot create task in the past',
-            details: 'Deadline must be today or in the future'
+            error: 'Невозможно создать задачу',
+            details: 'Нельзя создавать задачи на прошедшие даты',
+            message: `Вы пытаетесь создать задачу на ${formatDate(deadlineDate)}, но сегодня ${formatDate(getMoscowDate())}. Пожалуйста, выберите сегодняшнюю или будущую дату.`
         });
     }
 
-    // ✅ ПРОВЕРКА: Если задача на сегодня, проверяем время
+    // ✅ Проверка: если задача на сегодня, проверяем время
     if (isPastTime(deadlineDate)) {
         return res.status(400).json({
             success: false,
-            error: 'Cannot create task for past time',
-            details: 'The specified time has already passed today'
+            error: 'Невозможно создать задачу',
+            details: 'Время задачи уже прошло сегодня',
+            message: `Вы пытаетесь создать задачу на ${formatDate(deadlineDate)}, но сейчас ${formatDate(getMoscowDate())}. Пожалуйста, выберите будущее время.`
         });
     }
 
@@ -171,10 +173,21 @@ async function createTask(req, res, userId) {
         if (isPastDate(firstDayDeadline)) {
             return res.status(400).json({
                 success: false,
-                error: 'Cannot create skill in the past',
-                details: 'First day of skill must be today or in the future'
+                error: 'Невозможно создать навык',
+                details: 'Первый день навыка не может быть в прошлом',
+                message: `Вы пытаетесь начать навык ${formatDate(firstDayDeadline)}, но сегодня ${formatDate(getMoscowDate())}. Пожалуйста, выберите сегодняшнюю или будущую дату.`
             });
         }
+
+        if (isPastTime(firstDayDeadline)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Невозможно создать навык',
+                details: 'Время начала навыка уже прошло сегодня',
+                message: `Вы пытаетесь начать навык в ${formatDate(firstDayDeadline)}, но сейчас ${formatDate(getMoscowDate())}. Пожалуйста, выберите будущее время.`
+            });
+        }
+
 
         for (let i = 1; i <= duration; i++) {
             const day = startDay + i;

@@ -8,6 +8,7 @@ import type { Page, Task, Achievement, UserProfile, LevelUpgrade } from '../type
 import { apiService } from '../services/api.service';
 import { authService } from '../services/auth.service';
 import { API_CONFIG } from '../config/api.config';
+import { useNotifications } from '../hooks/push';
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -29,6 +30,7 @@ export default function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [levelUpgrades, setLevelUpgrades] = useState<LevelUpgrade[]>([]);
+  useNotifications(tasks);
 
   useEffect(() => {
     const checkAuth = async () => {
