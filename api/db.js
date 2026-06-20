@@ -1,4 +1,4 @@
-// api/db.js - CommonJS с правильной адаптацией
+// api/db.js - Правильная работа с Neon
 const { neon } = require('@neondatabase/serverless');
 
 const connectionString = process.env.DATABASE_URL;
@@ -24,35 +24,73 @@ async function testConnection() {
 }
 
 // ⚠️ КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: функция query, которая возвращает { rows: [...] }
-async function query(text, params) {
+async function query(text, params = []) {
     try {
-        // Если текст запроса содержит $1, $2 и т.д. - используем параметризованный запрос
+        console.log('📝 Query:', text);
+        console.log('📊 Params:', params);
+        
         let result;
+        
+        // Если есть параметры - используем параметризованный запрос
         if (params && params.length > 0) {
-            // Для параметризованных запросов
-            result = await sql(text, ...params);
+            // 🚀 ПРАВИЛЬНЫЙ СПОСОБ: заменяем $1, $2 на значения
+            // Neon не поддерживает параметры как аргументы функции
+            // Используем подход с шаблонными строками
+            let queryText = text;
+            let paramIndex = 1;
+            
+            // Заменяем $1, $2 на $1, $2 (оставляем как есть для Neon)
+            // Но используем другой подход: выполняем запрос с параметрами через sql()
+            // Используем sql для каждого запроса отдельно
+            // Вместо этого, строим запрос с экранированными значениями
+            // ⚠️ ВАЖНО: экранируем строки, чтобы избежать SQL-инъекций
+            const escapedParams = params.map(p => {
+                if (typeof p === 'string') {
+                    // Экранируем строки (заменяем ' на '')
+                    return `'${p.replace(/'/g, "''")}'`;
+                } else if (p === null) {
+                    return 'NULL';
+                } else if (typeof p === 'boolean') {
+                    return p ? 'TRUE' : 'FALSE';
+                } else {
+                    return p;
+                }
+            });
+            
+            // Заменяем $1, $2 и т.д. на экранированные значения
+            let finalQuery = text;
+            let idx = 1;
+            for (const param of escapedParams) {
+                finalQuery = finalQuery.replace(`$${idx}`, param);
+                idx++;
+            }
+            
+            console.log('📝 Final query:', finalQuery);
+            result = await sql(finalQuery);
         } else {
-            // Для запросов без параметров
+            // Запрос без параметров
             result = await sql(text);
         }
         
-        // Убеждаемся, что результат всегда имеет поле rows
-        // Neon возвращает массив, если это SELECT, или объект с count, если это INSERT/UPDATE/DELETE
+        console.log('📊 Result type:', typeof result);
+        console.log('📊 Is array:', Array.isArray(result));
+        
+        // ✅ Правильная обработка результата
         if (Array.isArray(result)) {
             return { rows: result };
         } else if (result && typeof result === 'object') {
-            // Для INSERT/UPDATE/DELETE возвращаем пустой массив, чтобы не ломать код
+            // Для INSERT/UPDATE/DELETE возвращаем пустой массив
             return { rows: [] };
         } else {
             return { rows: [] };
         }
     } catch (error) {
-        console.error('Database query error:', error);
+        console.error('❌ Database query error:', error);
         throw error;
     }
 }
 
-// Экспортируем всё, что нужно
+// Экспортируем всё
 module.exports = { 
     sql, 
     query, 
