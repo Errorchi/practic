@@ -75,11 +75,33 @@ async function createTask(req, res, userId) {
     return;
   }
 
+  // ✅ Преобразование типов
+  const deadlineDate = new Date(deadline);
+  if (isNaN(deadlineDate.getTime())) {
+    res.status(400).json({ success: false, error: 'Invalid deadline format' });
+    return;
+  }
+
+  const isSkillBoolean = is_skill ? true : false;
+  const completedBoolean = completed ? true : false;
+  const userIdInt = parseInt(userId);
+
   const result = await query(
     `INSERT INTO tasks (user_id, text, completed, deadline, priority, is_skill, skill_duration, original_deadline, parent_task_id, day_number)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING id`,
-    [userId, text, completed || false, deadline, priority || 'medium', is_skill || false, skill_duration || null, original_deadline || null, parent_task_id || null, day_number || 1]
+    [
+      userIdInt,
+      text,
+      completedBoolean,
+      deadlineDate.toISOString(),
+      priority || 'medium',
+      isSkillBoolean,
+      skill_duration || null,
+      original_deadline || null,
+      parent_task_id || null,
+      day_number || 1
+    ]
   );
 
   res.status(201).json({ success: true, id: result.rows[0].id });
@@ -93,8 +115,10 @@ async function completeTask(req, res, userId) {
     return;
   }
 
-  // Get the task first
-  const taskResult = await query('SELECT * FROM tasks WHERE id = $1 AND user_id = $2', [id, userId]);
+  const userIdInt = parseInt(userId);
+
+  // 1. Получаем задачу
+  const taskResult = await query('SELECT * FROM tasks WHERE id = $1 AND user_id = $2', [id, userIdInt]);
   if (taskResult.rows.length === 0) {
     res.status(404).json({ success: false, error: 'Task not found' });
     return;
@@ -102,47 +126,66 @@ async function completeTask(req, res, userId) {
 
   const task = taskResult.rows[0];
 
-  // Mark task as completed
-  await query('UPDATE tasks SET completed = TRUE, updated_at = NOW() WHERE id = $1 AND user_id = $2', [id, userId]);
+  // 2. Отмечаем задачу как выполненную
+  await query('UPDATE tasks SET completed = TRUE, updated_at = NOW() WHERE id = $1 AND user_id = $2', [id, userIdInt]);
+  
+  // 3. Начисляем валюту в зависимости от приоритета
+  let currencyReward = 5; // По умолчанию для "low"
+  if (task.priority === 'medium') currencyReward = 5;
+  if (task.priority === 'high') currencyReward = 10;
+  
+  // Если это скилл-задача, добавляем бонус
+  if (task.is_skill) {
+    currencyReward += 5;
+  }
 
-  // Calculate experience reward
+  // Применяем начисление валюты
+  await query(
+    'UPDATE users SET currency = currency + $1, updated_at = NOW() WHERE id = $2',
+    [currencyReward, userIdInt]
+  );
+
+  // 4. Рассчитываем награду за опыт
   const priorityMultiplier = task.priority === 'high' ? 3 : task.priority === 'medium' ? 2 : 1;
   const baseXP = 10;
   const xpReward = baseXP * priorityMultiplier;
 
-  // Update user experience and check level up
-  const userResult = await query('SELECT experience, level FROM users WHERE id = $1', [userId]);
+  // 5. Получаем текущие данные пользователя
+  const userResult = await query('SELECT experience, level FROM users WHERE id = $1', [userIdInt]);
   const user = userResult.rows[0];
   let newExperience = user.experience + xpReward;
   let newLevel = user.level;
   let leveledUp = false;
+  let levelUpReward = 0;
 
-  // Level up logic: each level requires level * 100 XP
+  // 6. Проверяем повышение уровня
   const xpForNextLevel = newLevel * 100;
   if (newExperience >= xpForNextLevel) {
     newExperience -= xpForNextLevel;
     newLevel += 1;
     leveledUp = true;
 
-    // Currency reward for leveling up
-    const levelUpReward = newLevel * 50;
+    // 🪙 Бонус за повышение уровня
+    levelUpReward = newLevel * 50;
     await query(
       'UPDATE users SET experience = $1, level = $2, currency = currency + $3, updated_at = NOW() WHERE id = $4',
-      [newExperience, newLevel, levelUpReward, userId]
+      [newExperience, newLevel, levelUpReward, userIdInt]
     );
   } else {
     await query(
       'UPDATE users SET experience = $1, updated_at = NOW() WHERE id = $2',
-      [newExperience, userId]
+      [newExperience, userIdInt]
     );
   }
 
   res.json({
     success: true,
-    xpReward,
-    leveledUp,
+    xpReward,                // Сколько опыта получено
+    currencyReward,          // 🪙 Сколько валюты получено за задачу
+    leveledUp,               // Было ли повышение уровня
     newLevel: leveledUp ? newLevel : undefined,
-    levelUpReward: leveledUp ? newLevel * 50 : undefined
+    levelUpReward: leveledUp ? levelUpReward : undefined, // 🪙 Бонус за уровень
+    totalCurrency: user.currency + currencyReward + (leveledUp ? levelUpReward : 0) // Общая валюта
   });
 }
 
@@ -154,6 +197,7 @@ async function deleteTask(req, res, userId) {
     return;
   }
 
-  await query('DELETE FROM tasks WHERE id = $1 AND user_id = $2', [id, userId]);
+  const userIdInt = parseInt(userId);
+  await query('DELETE FROM tasks WHERE id = $1 AND user_id = $2', [id, userIdInt]);
   res.json({ success: true });
 }
