@@ -321,7 +321,7 @@ export function CalendarPage({
                           <div className="text-xl font-bold">{day.getDate()}</div>
                         </button>
                         
-                        <div className="space-y-1">
+                        <div className="space-y-1 md:min-h-[200px]">
                           {sortTasksByTimeAndPriority(dayTasks).map(task => (
                             <div
                               key={task.id}
