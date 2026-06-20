@@ -13,21 +13,12 @@ export const useNotifications = (tasks: Task[]) => {
       if (initializedRef.current) return;
       initializedRef.current = true;
 
-      console.log('🔔 Инициализация уведомлений...');
-
       const granted = await notificationService.requestPermission();
       
       if (!granted) {
         console.log('🔕 Уведомления не разрешены');
         return;
       }
-
-      console.log('✅ Уведомления разрешены');
-
-      // Тестовое уведомление
-      setTimeout(() => {
-        notificationService.testNotification();
-      }, 2000);
 
       // Восстанавливаем таймеры
       notificationService.restoreReminders(tasks);

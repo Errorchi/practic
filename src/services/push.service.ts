@@ -107,10 +107,6 @@ export class NotificationService {
       return;
     }
 
-    console.log(`📅 Задача "${task.text}" deadline: ${new Date(deadlineTime).toLocaleString()}`);
-    console.log(`📅 Сейчас: ${new Date(now).toLocaleString()}`);
-    console.log(`📅 Напоминание в: ${new Date(reminderTime).toLocaleString()}`);
-
     if (reminderTime <= now) {
       console.log(`⏰ Время напоминания для задачи "${task.text}" уже прошло`);
       
@@ -218,15 +214,5 @@ export class NotificationService {
     } catch (error) {
       console.error('Failed to restore reminders:', error);
     }
-  }
-
-  // Тестовая функция для проверки уведомлений
-  testNotification() {
-    console.log('🔔 Тестовое уведомление');
-    this.showNotification('🔔 Тестовое уведомление!', {
-      body: 'Если вы видите это - уведомления работают!',
-      icon: '/icons/icon-192.png',
-      requireInteraction: true
-    });
   }
 }
