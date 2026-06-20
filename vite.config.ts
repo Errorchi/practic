@@ -11,6 +11,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  publicDir: 'public',
   build: {
     outDir: 'dist',
     emptyOutDir: true,
@@ -18,7 +19,8 @@ export default defineConfig({
       output: {
         manualChunks: undefined
       }
-    }
+    },
+    copyPublicDir: true,
   },
   resolve: {
     alias: {
