@@ -1,5 +1,4 @@
-// api/db.js
-import { neon } from '@neondatabase/serverless';
+const { neon } = require('@neondatabase/serverless');
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -8,10 +7,10 @@ if (!connectionString) {
 }
 
 // Создаем клиент Neon
-export const sql = neon(connectionString);
+const sql = neon(connectionString);
 
 // Функция для проверки подключения
-export async function testConnection() {
+async function testConnection() {
     try {
         const result = await sql`SELECT 1 as connected`;
         console.log('✅ Database connected successfully');
@@ -22,5 +21,9 @@ export async function testConnection() {
     }
 }
 
-// Для совместимости с другими файлами
-export default sql;
+// Экспортируем для CommonJS
+module.exports = { sql, testConnection };
+// Для обратной совместимости с query
+module.exports.query = async (text, params) => {
+    return sql(text, params);
+};
