@@ -333,7 +333,7 @@ export function ProfilePage({
             <div className="mt-6 space-y-6">
               <div>
                 <h3 className="text-lg font-bold mb-3">Иконки персонажей</h3>
-                <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {characterIcons.map(icon => {
                     const isPurchased = purchasedIcons.includes(icon.id);
                     const canAfford = userProfile.currency >= icon.price;

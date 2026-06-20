@@ -236,8 +236,8 @@ export default function App() {
         )}
       </div>
 
-      <nav className="bg-white border-t border-pink-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-pink-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 max-w-4xl mx-auto">
           <div className="flex justify-around py-2">
             <button
               onClick={() => setCurrentPage('main')}
@@ -248,7 +248,7 @@ export default function App() {
               }`}
             >
               <Home size={20} />
-              <span className="text-xs">Задачи</span>
+              <span className="text-xs">Главная</span>
             </button>
             <button
               onClick={() => setCurrentPage('calendar')}
